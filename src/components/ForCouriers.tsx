@@ -35,7 +35,7 @@ import { formatKes, formatLocalizedNumber, interpolatePartnerCopy, partnerEconom
 import { useTheme } from '../context/ThemeContext';
 
 interface ForCouriersProps {
-  onNavigate: (page: 'home' | 'merchants' | 'properties' | 'restaurants' | 'experiences' | 'merchant_onboarding' | 'properties' | 'couriers' | 'courier_onboarding') => void;
+  onNavigate: (page: 'home' | 'merchants' | 'properties' | 'restaurants' | 'experiences' | 'merchant_onboarding' | 'properties' | 'couriers' | 'courier_onboarding' | 'rider_portal') => void;
 }
 
 export default function ForCouriers({ onNavigate }: ForCouriersProps) {
@@ -206,6 +206,7 @@ export default function ForCouriers({ onNavigate }: ForCouriersProps) {
                 <button onClick={() => handleMobileNav('properties')} className="text-left py-2 hover:text-[#E5B65F] w-full transition-colors">{t.ui.forCouriers.s_38769a}</button>
                 <button onClick={() => handleMobileNav('merchants')} className="text-left py-2 hover:text-[#E5B65F] w-full transition-colors">{t.ui.forCouriers.s_52a6f3}</button>
                 <button onClick={() => handleMobileNav('couriers')} className="text-left py-2 hover:text-[#E5B65F] w-full transition-colors text-[#E5B65F]">{t.ui.forCouriers.s_18414d}</button>
+                <button onClick={() => handleMobileNav('rider_portal')} className="text-left py-2 hover:text-[#E5B65F] w-full transition-colors">Rider portal preview</button>
                 <button onClick={() => handleMobileNav('experiences')} className="text-left py-2 hover:text-[#E5B65F] w-full transition-colors">Experiences</button>
               </div>
               <button 
@@ -276,6 +277,14 @@ export default function ForCouriers({ onNavigate }: ForCouriersProps) {
                     : 'border-white/20 text-white hover:bg-white/5'
                 }`}
               >{t.ui.forCouriers.s_38df83}</button>
+              <button
+                onClick={() => onNavigate('rider_portal')}
+                className={`w-full sm:w-auto border px-8 py-4 rounded-full font-bold text-base transition-colors text-center cursor-pointer min-h-[48px] ${
+                  isLight
+                    ? 'border-slate-300 text-slate-800 hover:bg-slate-100 bg-white/70 shadow-sm'
+                    : 'border-white/20 text-white hover:bg-white/5'
+                }`}
+              >Rider portal preview</button>
             </div>
           </div>
         </div>

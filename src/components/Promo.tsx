@@ -1,4 +1,6 @@
-import { Apple, Play, ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
+import appStoreMark from '../assets/app-store-mark.svg';
+import googlePlayMark from '../assets/google-play-mark.svg';
 import { useTheme } from '../context/ThemeContext';
 import { responsiveProps } from './ResponsiveImage';
 import { useLanguage } from '../context/LanguageContext';
@@ -35,30 +37,34 @@ export default function Promo({ onNavigate }: PromoProps) {
               {t.promo.appSubtitle}
             </p>
             
-            {/* App download badges stacked vertically as shown in sample photo */}
-            <div className="flex flex-col gap-2.5 items-start">
-              {/* Apple Store Button */}
-              <button className={`w-fit flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5 rounded-[10px] sm:rounded-[12px] transition text-left shadow-sm hover:shadow-md cursor-pointer ${
-                isLight ? 'bg-slate-900 text-white hover:bg-black' : 'bg-[#1C1C1E] text-white hover:bg-black'
-              }`}>
-                <Apple size={18} className="fill-current text-white flex-shrink-0 sm:w-5 sm:h-5" />
-                <div className="flex flex-col leading-none">
-                  <span className="text-[6px] sm:text-[8px] uppercase tracking-wider text-gray-400 font-semibold">{t.promo.downloadOn}</span>
-                  <span className="font-bold text-[12px] sm:text-[15px] mt-0.5 sm:mt-1">{t.promo.appStore}</span>
+            {import.meta.env.DEV ? (
+              <div className="flex flex-col items-start gap-2.5" aria-label="Local store artwork preview">
+                <p className={`text-[10px] font-semibold tracking-wide ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>
+                  Store listing not connected
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <div
+                    className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${isLight ? 'border-slate-200 bg-white/90 text-slate-900' : 'border-white/10 bg-[#f6f1e6] text-slate-900'}`}
+                    role="img"
+                    aria-label="App Store preview artwork. No listing link is connected."
+                    title="Local preview only · no App Store listing link"
+                  >
+                    <img src={appStoreMark} alt="" aria-hidden="true" className="h-5 w-5" />
+                    <span className="text-xs font-bold">App Store</span>
+                  </div>
+                  <div
+                    className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${isLight ? 'border-slate-200 bg-white/90 text-slate-900' : 'border-white/10 bg-[#f6f1e6] text-slate-900'}`}
+                    role="img"
+                    aria-label="Google Play preview artwork. No listing link is connected."
+                    title="Local preview only · no Google Play listing link"
+                  >
+                    <img src={googlePlayMark} alt="" aria-hidden="true" className="h-5 w-5" />
+                    <span className="text-xs font-bold">Google Play</span>
+                  </div>
                 </div>
-              </button>
-              
-              {/* Google Play Button */}
-              <button className={`w-fit flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5 rounded-[10px] sm:rounded-[12px] transition text-left shadow-sm hover:shadow-md cursor-pointer ${
-                isLight ? 'bg-slate-900 text-white hover:bg-black' : 'bg-[#1C1C1E] text-white hover:bg-black'
-              }`}>
-                <Play size={16} className="fill-current text-white flex-shrink-0 sm:w-4 sm:h-4" />
-                <div className="flex flex-col leading-none">
-                  <span className="text-[6px] sm:text-[8px] uppercase tracking-wider text-gray-400 font-semibold">{t.promo.getItOn}</span>
-                  <span className="font-bold text-[12px] sm:text-[15px] mt-0.5 sm:mt-1">{t.promo.googlePlay}</span>
-                </div>
-              </button>
-            </div>
+                <span className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-gray-400'}`}>Local preview only</span>
+              </div>
+            ) : null}
           </div>
 
           {/* Right Content - Hand holding Phone Mockup aligned perfectly to bottom right as in the reference screenshot */}

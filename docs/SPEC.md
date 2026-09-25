@@ -52,7 +52,10 @@ catalogue with plausible variety.
 same generic structure because the generator produced items without authored grouping. This is
 the highest-value data problem in the project and no amount of frontend work fixes it.
 
-### The 21 categories
+### The 21 catalogue categories
+
+For customer browsing, Travel & Tours is grouped under Experiences. The catalogue retains
+its separate category ID for merchant records and booking workflows.
 
 ```
 Adults Only · Airport Transfers · Alcohol & Beverages · Beauty
@@ -157,8 +160,11 @@ If Postgres is unreachable the API **serves the bundled JSON catalogue** and say
 
 ### Discovery and search
 
-The browse surface. Live search, a horizontal category rail with emoji, subcategory chips, sort
-control, infinite scroll, and merchant cards.
+The customer browse surface is a photo-led Nairobi discovery screen. It includes live merchant
+search, a slowly looping responsive category rail, dedicated category screens, subcategory
+filters, server sorting, infinite results, and merchant cards. The opening rail curates up to 15
+categories by service and booking value, with Adults Only last; the visible number adapts to the
+viewport, and every catalogue category remains available through “All categories.”
 
 ### Home
 

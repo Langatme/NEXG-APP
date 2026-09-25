@@ -217,8 +217,17 @@ export async function listMerchants(opts: MerchantQuery) {
   const params: unknown[] = [];
 
   if (opts.category && opts.category !== 'all') {
-    params.push(opts.category);
-    where.push(`(m.primary_category_id = $${params.length} OR c.slug = $${params.length})`);
+    if (opts.category === 'experiences') {
+      const experiencesParam = params.length + 1;
+      const travelToursParam = params.length + 2;
+      params.push('experiences', 'travel-tours');
+      where.push(
+        `(m.primary_category_id IN ($${experiencesParam}, $${travelToursParam}) OR c.slug IN ($${experiencesParam}, $${travelToursParam}))`
+      );
+    } else {
+      params.push(opts.category);
+      where.push(`(m.primary_category_id = $${params.length} OR c.slug = $${params.length})`);
+    }
   }
   if (opts.subcategory) {
     params.push(opts.subcategory);

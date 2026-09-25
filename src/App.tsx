@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import Header from './components/Header';
 import Hero from './components/Hero';
 // Home-page sections are imported EAGERLY, not lazily.
@@ -33,7 +33,7 @@ const ForProperties = lazy(() => import('./components/ForProperties'));
 const ForCouriers = lazy(() => import('./components/ForCouriers'));
 const CourierOnboarding = lazy(() => import('./components/CourierOnboarding'));
 const RiderPortal = lazy(() => import('./components/RiderPortal'));
-const HostPortal = lazy(() => import('./components/HostPortal'));
+const HostPortal = import.meta.env.DEV ? lazy(() => import('./components/HostPortal')) : null;
 
 // NEXG Flow Components
 const NexGDiscoveryView = lazy(() => import('./components/NexGDiscoveryView'));
@@ -108,7 +108,6 @@ function prefetchRoutes() {
     load().catch(() => {});
   }
 }
-
 
 /**
  * The operations dashboard, also split out. It is a developer surface reached by
@@ -389,7 +388,7 @@ function AppContent() {
     addToCart({ id: item.id, name: item.name, price: item.price, quantity });
   };
 
-  const handleNavigate = (page: string) => {
+  const handleNavigate = useCallback((page: string) => {
     if (!import.meta.env.DEV && HOST_PORTAL_PAGES.includes(page as AppCurrentPage)) {
       setCurrentPage('properties');
       return;
@@ -398,12 +397,12 @@ function AppContent() {
       setNexgStage('none');
     }
     setCurrentPage(page as AppCurrentPage);
-  };
+  }, []);
 
   return (
     <div
       className={`font-sans min-h-screen selection:bg-[#E5B65F] selection:text-black relative flex flex-col justify-between transition-colors duration-500 ${
-        isLight ? 'bg-[#f7f8fa] text-[#1a1d20]' : 'bg-[#111315] text-[#f2f2f2]'
+        isLight ? 'bg-gold-canvas text-[#1a1d20]' : 'bg-[#111315] text-[#f2f2f2]'
       }`}
     >
       {/* Global Docked Header. Hidden while the discovery surface is open, which
@@ -545,7 +544,7 @@ function AppContent() {
           <RiderPortal onNavigate={handleNavigate} />
         )}
 
-        {import.meta.env.DEV && HOST_PORTAL_PAGES.includes(currentPage) && (
+        {import.meta.env.DEV && HOST_PORTAL_PAGES.includes(currentPage) && HostPortal && (
           <HostPortal page={currentPage as 'host_login' | 'host_apply' | 'host_status' | 'host_workspace' | 'host_review'} onNavigate={handleNavigate} />
         )}
 

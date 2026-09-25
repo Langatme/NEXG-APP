@@ -7,7 +7,7 @@ boundary so that never happens by accident.
 | Library | Version | Where it is used today |
 | --- | --- | --- |
 | **Motion** (`motion/react`) | 12.x | 25 files — page and route transitions, modal enter/exit, layout animation, `useReducedMotion`, `useScroll` |
-| **react-spring** | 10.0.4 | Installed and available. Nothing consumes it yet. |
+| **react-spring** | 10.0.4 | Discovery category rail drag momentum and seamless auto-loop. |
 
 `framer-motion` 13.x is also present as Motion's legacy alias. New code imports
 `motion/react`, never `framer-motion`.
@@ -27,6 +27,7 @@ partway with no error to explain it.
 
 **react-spring** when the motion is *physical or gesture-driven*:
 - drag-to-dismiss on sheet and drawer surfaces, with velocity carried into the exit
+- the discovery category rail, where pointer drag momentum and the looping track share one controller
 - pull-to-refresh and rubber-banding
 - anything interrupted mid-flight, where a released spring must continue from its
   current position and velocity rather than restarting

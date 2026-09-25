@@ -129,10 +129,10 @@ export default function DockedSearchBar({
             // parked above the viewport.
             tabIndex={docked ? 0 : -1}
             className={cn(
-              'w-full border-0 bg-transparent pl-11 pr-28 py-2.5 text-xs sm:text-sm font-semibold outline-none transition focus-visible:ring-2',
+              'w-full border pl-11 pr-28 py-2.5 text-xs sm:text-sm font-semibold outline-none transition focus-visible:ring-2',
               isLight
-                ? 'rounded-xl text-slate-900 placeholder:text-[#594A2D] focus-visible:ring-[#7D5A11]/25'
-                : 'rounded-full text-[#F8F3E8] placeholder:text-[#C4CBD3] focus-visible:ring-[#E5B65F]/20'
+                ? 'docked-search__input--light rounded-xl text-slate-900 placeholder:text-[#594A2D] focus-visible:ring-[#7D5A11]/25'
+                : 'docked-search__input--dark rounded-full text-[#F8F3E8] placeholder:text-[#C4CBD3] focus-visible:ring-[#E5B65F]/20'
             )}
           />
 

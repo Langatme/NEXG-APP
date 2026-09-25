@@ -24,6 +24,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useCart } from '../context/CartContext';
 import { useNexGNavigation } from './nexg/NexGNavigationContext';
 import { CATEGORIES_21, CatalogCategory, CatalogMerchant, DynamicItem } from '../data/categoryCatalog21';
+import { mergeTravelToursIntoExperiences } from '../lib/categoryGrouping';
 import { Restaurant } from '../types';
 import { ProductCarousel, type Product } from './ui/product-carousel';
 import { NexGInfiniteFeed } from './nexg/NexGInfiniteFeed';
@@ -93,7 +94,8 @@ export default function NexGDiscoveryView({
     }
   };
 
-  const filteredCategories = CATEGORIES_21.filter((c) => {
+  const customerCategories = mergeTravelToursIntoExperiences(CATEGORIES_21);
+  const filteredCategories = customerCategories.filter((c) => {
     if (activeTab === 'food') return ['restaurants', 'fine_dining', 'desserts_bakery', 'fast_food', 'coffee_tea', 'groceries'].includes(c.slug);
     if (activeTab === 'wellness') return ['beauty', 'pharmacy', 'health_nutrition', 'florists'].includes(c.slug);
     if (activeTab === 'experiences') return ['experiences', 'vehicle_rentals', 'airport_transfers', 'electronics'].includes(c.slug);
@@ -129,7 +131,7 @@ export default function NexGDiscoveryView({
     <div
       className={cn(
         'min-h-screen transition-colors duration-500',
-        isLight ? 'bg-[#f7f8fa] text-[#1a1d20]' : 'bg-[#111315] text-[#f2f2f2]'
+        isLight ? 'bg-gold-canvas text-[#1a1d20]' : 'bg-[#111315] text-[#f2f2f2]'
       )}
     >
       {/* Top Sticky Navigation Bar */}
@@ -404,7 +406,11 @@ export default function NexGDiscoveryView({
                 const found = CATEGORIES_21.find(
                   (c) => c.id === catId || c.slug === catId
                 );
-                if (found) onSelectCategory(found);
+                if (found) {
+                  const categorySlug = found.slug === 'travel-tours' ? 'experiences' : found.slug;
+                  const customerCategory = customerCategories.find((category) => category.slug === categorySlug);
+                  if (customerCategory) onSelectCategory(customerCategory);
+                }
               }}
             />}
 

@@ -5,9 +5,10 @@ import { useLanguage } from '../context/LanguageContext';
 import { useReducedMotion } from 'motion/react';
 import { HeroWipeSubtitle } from './HeroRotatingSubtitle';
 import DockedSearchBar from './hero/DockedSearchBar';
-import ResponsiveImage from './ResponsiveImage';
 import heroRooftopBlueHourDesktop from '../assets/images/hero_rooftop_blue_hour_desktop.webp';
 import heroRooftopBlueHourMobile from '../assets/images/hero_rooftop_blue_hour_mobile.webp';
+import heroRooftopSunsetDesktop from '../assets/images/hero_rooftop_sunset_desktop.webp';
+import heroRooftopSunsetMobile from '../assets/images/hero_rooftop_sunset_mobile.webp';
 import { splitHeadline } from '../lib/headline';
 
 interface HeroProps {
@@ -107,7 +108,7 @@ export default function Hero({ onNavigate, onOpenCategories }: HeroProps) {
           />
         </div>
 
-        {/* Light-mode sunset penthouse terrace image */}
+        {/* Light mode uses matching sunset edits of the blue-hour desktop and mobile artwork. */}
         <div
           className={`absolute inset-0 transition-opacity duration-700 ease-in-out ${
             isLight ? 'opacity-100' : 'opacity-0'
@@ -116,34 +117,22 @@ export default function Hero({ onNavigate, onOpenCategories }: HeroProps) {
           {/* Warm gold scrims preserve headline contrast without bleaching the image. */}
           <div className="hero-light-warmth absolute inset-0 z-10" />
           <div className="hero-light-ground absolute inset-0 z-10" />
-          {/*
-            LIGHT MODE HAS NO MOBILE IMAGE, so this one has to work at every size.
-
-            Dark mode now has a dedicated landscape and portrait pair. Light mode has no
-            equivalent — there is only `hero_daylight_resort`, a landscape composition —
-            so on a phone it was being
-            stretched into a portrait frame and cropped wherever `object-cover` happened to
-            land. That is what the user saw: the light-mode image reading differently on a
-            phone than on a desktop, with the subject lost off the edge.
-
-            `object-position` is the honest fix available with one asset. A 16:9 frame squeezed
-            into 9:19.5 keeps only about 29% of its width, so the centre is the wrong default:
-            it discards the pool and the terrace on both sides. Anchoring mobile to 62%
-            horizontal keeps the pool edge and the skyline, which are the parts that carry the
-            image, and leaves the desktop framing untouched at 50%.
-
-            If a portrait light-mode shot is ever supplied, add it here as a second
-            ResponsiveImage with the same `sm` split dark mode already uses — that is the real
-            fix, and this is the best that one landscape asset can do.
-          */}
-          <ResponsiveImage
-            name="hero_daylight_resort_1789914085669.jpg"
-            sizes="100vw"
-            priority
-            alt={t.ui.hero.s_c75a68}
-            className="hero-light-image w-full h-full object-cover brightness-100 contrast-[1.03] object-[62%_center] sm:object-center"
-            referrerPolicy="no-referrer"
+          <div
+            aria-hidden="true"
+            className="hero-light-transition absolute inset-x-0 bottom-0 z-10 h-16 sm:h-24"
           />
+          <picture className="absolute inset-0 z-0 block h-full w-full">
+            <source media="(max-width: 639px)" srcSet={heroRooftopSunsetMobile} />
+            <img
+              src={heroRooftopSunsetDesktop}
+              alt=""
+              aria-hidden="true"
+              loading="eager"
+              fetchPriority="high"
+              decoding="async"
+              className="hero-light-image h-full w-full object-cover"
+            />
+          </picture>
         </div>
 
       </div>

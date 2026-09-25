@@ -326,9 +326,9 @@ html.light .hero-h1__lead {
 .hero-light-warmth {
   background: linear-gradient(
     90deg,
-    rgb(255 219 112 / 38%) 0%,
-    rgb(255 219 112 / 22%) 48%,
-    rgb(255 219 112 / 5%) 76%,
+    rgb(255 219 112 / 12%) 0%,
+    rgb(255 219 112 / 7%) 48%,
+    rgb(255 219 112 / 2%) 76%,
     transparent 100%
   );
 }
@@ -336,14 +336,23 @@ html.light .hero-h1__lead {
 .hero-light-ground {
   background: linear-gradient(
     0deg,
-    rgb(230 161 24 / 17%) 0%,
-    rgb(242 183 53 / 7%) 27%,
-    transparent 62%
+    rgb(230 161 24 / 12%) 0%,
+    rgb(242 183 53 / 5%) 27%,
+    transparent 56%
+  );
+}
+
+.hero-light-transition {
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgb(216 179 80 / 45%) 52%,
+    var(--color-gold-canvas) 100%
   );
 }
 
 .hero-light-image {
-  filter: brightness(1.04) saturate(1.1) contrast(1.02);
+  filter: saturate(1.04) contrast(1.02);
 }
 
 .hero-content--light {
@@ -362,6 +371,15 @@ html.light .hero-h1 {
 
 html.light .hero-h1__line2 {
   font-size: 1em;
+}
+
+/* Add a fine stroke in the same ink colour for a little optical weight without
+   changing the headline's black-on-sunset treatment. */
+html.light .hero-section--light .hero-h1__lead,
+html.light .hero-section--light .hero-h1__line2 {
+  color: #15130E;
+  -webkit-text-stroke: 0.01em currentColor;
+  paint-order: stroke fill;
 }
 
 .hero-light-services {
@@ -388,16 +406,17 @@ html.light .hero-h1__line2 {
 }
 
 .hero-light-services__lead {
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .hero-light-services__separator {
   padding-inline: 0.13em;
-  color: #181713;
+  color: #FFFFFF;
+  text-shadow: 0 1px 4px rgb(24 23 19 / 55%);
 }
 
 .hero-light-services__support {
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .hero-search--light {
@@ -466,24 +485,6 @@ html.light .hero-h1__line2 {
 
 .hero-search--light #hero-search-submit-btn:hover {
   background: #D99408;
-}
-
-.home-light-header-controls {
-  transition: opacity 180ms ease-out;
-}
-
-@media (min-width: 48rem) {
-  .home-light-header-controls,
-  .home-dark-header-controls {
-    opacity: 0;
-  }
-
-  .home-light-header-controls:hover,
-  .home-light-header-controls:focus-within,
-  .home-dark-header-controls:hover,
-  .home-dark-header-controls:focus-within {
-    opacity: 1;
-  }
 }
 
 @media (min-width: 1024px) {
@@ -653,6 +654,26 @@ html:not(.light) .hero-section--dark .hero-h1__lead {
 
 .hero-search--dark #hero-search-submit-btn:hover {
   background: #D99408;
+}
+
+.docked-search__input--light {
+  border-color: rgb(109 83 29 / 48%);
+  background: rgb(247 238 216 / 48%);
+  box-shadow: 0 0 0 1px rgb(184 135 40 / 14%);
+}
+
+.docked-search__input--dark {
+  border-color: rgb(229 182 95 / 58%);
+  background: rgb(32 35 40 / 96%);
+  box-shadow: 0 0 0 1px rgb(229 182 95 / 18%);
+}
+
+.docked-search__input--light:focus-visible {
+  border-color: #946200;
+}
+
+.docked-search__input--dark:focus-visible {
+  border-color: #E5B65F;
 }
 
 @media (min-width: 1024px) {

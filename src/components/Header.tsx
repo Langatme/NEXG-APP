@@ -96,6 +96,19 @@ export default function Header({ currentPage, onNavigate, onExplore }: HeaderPro
     setIsMobileMenuOpen(false);
   };
 
+  const homeHeaderBackground = currentPage === 'home'
+    ? isLight
+      ? 'rgb(252 249 241 / 46%)'
+      : 'rgb(24 26 31 / 66%)'
+    : undefined;
+  const headerBackdrop = currentPage === 'home'
+    ? 'bg-transparent'
+    : isLight
+      ? isScrolled
+        ? 'bg-[#FCF9F1]/48'
+        : 'bg-[#FCF9F1]'
+      : 'bg-[#181A1F]';
+
   return (
     <header
       className={`fixed top-0 left-0 right-0 w-full z-50 rounded-none border-none transition duration-300 ${
@@ -109,29 +122,14 @@ export default function Header({ currentPage, onNavigate, onExplore }: HeaderPro
       } ${
         isLight ? 'text-slate-900' : 'text-[#F8F3E8]'
       }`}
+      style={{ backgroundColor: homeHeaderBackground }}
     >
       {/* Progressive Blur Layering System */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden -z-10">
+      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
         {/* Layer 1: Core Frosted Glass with gradual vertical transparency falloff */}
         <div
-          className={`absolute inset-0 backdrop-blur-2xl transition-colors duration-500 ${
-            isLight
-              ? isScrolled
-                ? 'bg-[#FCF9F1]/48'
-                : 'bg-[#FCF9F1]'
-              : isScrolled
-              ? 'bg-[#181A1F]'
-              : 'bg-[#181A1F]'
-          }`}
-          style={{
-            backgroundColor: isLight
-              ? isScrolled
-                ? 'rgb(252 249 241 / 48%)'
-                : '#FCF9F1'
-              : undefined,
-            WebkitMaskImage: 'none',
-            maskImage: 'none',
-          }}
+          className={`absolute inset-0 backdrop-blur-xl transition-colors duration-500 ${headerBackdrop}`}
+          style={{ WebkitMaskImage: 'none', maskImage: 'none' }}
         />
         {/* Layer 2: Extended Feathered Progressive Blur below bottom border for seamless scroll bleed */}
         <div
@@ -157,7 +155,7 @@ export default function Header({ currentPage, onNavigate, onExplore }: HeaderPro
 
           `min-w-0` lets the children shrink; `truncate` is what they shrink into; the control
           cluster is `shrink-0` because navigation must stay tappable. */}
-      <div className="max-w-[1536px] mx-auto px-4 sm:px-6 md:px-7 flex items-center justify-between gap-3 min-w-0 relative">
+      <div className="max-w-[1536px] mx-auto px-4 sm:px-6 md:px-7 flex items-center justify-between gap-3 min-w-0 relative z-10">
         {/* Brand — the supplied wordmark, with no text beside it.
             The artwork already spells NEXG, so a text block next to it said the name twice.
             Sized by height rather than a square box because the artwork is 361x137, about
@@ -281,15 +279,18 @@ export default function Header({ currentPage, onNavigate, onExplore }: HeaderPro
           <button
             id="header-theme-toggle-btn"
             onClick={toggleTheme}
-            className={`flex items-center justify-center w-9 h-9 rounded-xl border transition-colors cursor-pointer ${
+            className={`flex h-9 w-9 shrink-0 items-center justify-center gap-1.5 rounded-xl border transition-colors cursor-pointer sm:w-auto sm:px-3 ${
               isLight
-                ? 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-amber-800'
-                : 'bg-white/10 hover:bg-white/20 border-white/15 text-[#E5B65F]'
+                ? 'bg-[#F7EED8] hover:bg-[#EEE5D1] border-[#6D531D]/30 text-[#7D5A11]'
+                : 'bg-[#181A1F] hover:bg-[#202328] border-white/20 text-[#E5B65F]'
             }`}
-            aria-label={isLight ? 'Switch to Nocturnal Dark Mode' : 'Switch to Daylight Light Mode'}
+            aria-label={isLight ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
             title={isLight ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
           >
             {isLight ? <Moon size={17} /> : <Sun size={17} />}
+            <span className="hidden whitespace-nowrap text-xs font-semibold sm:inline">
+              {isLight ? 'Dark mode' : 'Light mode'}
+            </span>
           </button>
 
           {/* Cart Trigger */}

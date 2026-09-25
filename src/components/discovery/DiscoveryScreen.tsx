@@ -1,34 +1,30 @@
-// src/components/discovery/DiscoveryScreen.tsx
-//
-// The merchant discovery surface.
-//
-// This is what the search bar opens. It replaces the previous behaviour, where
-// clicking search opened a taxonomy modal listing categories with no merchants,
-// no results, no sorting and no filters.
-//
-// It is a real browse surface: live search, a vertical rail, subcategory chips,
-// sorting and pagination, all fed by the API. It reads API slugs only and never
-// touches the legacy CATEGORIES_21 taxonomy, whose slugs do not match the
-// database (v1 handoff section 5.3).
-
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useLanguage } from '../../context/LanguageContext';
 import {
-  Search,
-  X,
+  ArrowDown,
   ArrowLeft,
-  SlidersHorizontal,
+  ArrowRight,
+  Check,
   ChevronDown,
+  MapPin,
+  Search,
+  SlidersHorizontal,
   Store,
+  X,
   RefreshCw,
 } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useReducedMotion } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { fetchCategories, type ApiCategory, type ApiMerchant } from '../../lib/apiClient';
-import { emojiFor, categoryEmoji } from '../../data/railEmoji';
 import { useMerchantSearch, SORT_OPTIONS, type SortKey } from '../../hooks/useMerchantSearch';
+import { mergeTravelToursIntoExperiences } from '../../lib/categoryGrouping';
 import { DiscoveryMerchantCard } from './DiscoveryMerchantCard';
+import {
+  DiscoveryCategoryRail,
+  featuredDiscoveryCategories,
+  orderDiscoveryCategories,
+} from './DiscoveryCategoryRail';
 
 interface DiscoveryScreenProps {
   /** Optional query to seed the field, e.g. from the hero search box. */
@@ -37,6 +33,23 @@ interface DiscoveryScreenProps {
   onOpenMerchant: (merchant: ApiMerchant) => void;
 }
 
+const CATEGORY_STORIES: Record<string, string> = {
+  'concierge-services': 'Reservations, thoughtful errands and personal assistance for the details in between.',
+  experiences: 'Explore safaris, guided tours, events and travel plans worth looking forward to.',
+  'airport-transfers': 'Arrange an airport pickup, meet-and-greet or executive ride before you land.',
+  'vehicle-rentals': 'Choose a car for a day in the city, a weekend away or the open road.',
+  wellness: 'Make time for recovery, movement and a slower afternoon.',
+  beauty: 'Book a salon, skincare service or beauty appointment that suits your day.',
+  'alcohol-beverages': 'Discover wine, spirits and occasion-ready bottles from Nairobi partners.',
+  'flowers-gifts': 'Send flowers, considered gifts and hampers across the city.',
+  'fashion-apparel': 'Shop clothing, accessories and personal style services.',
+  'tech-electronics': 'Find electronics, everyday upgrades and accessories from local stores.',
+  'restaurants-food': 'Find your next meal, from a quick lunch to an unhurried dinner.',
+  'groceries-essentials': 'Restock the kitchen and home with everyday essentials and fresh picks.',
+  pharmacy: 'Order pharmacy and personal care essentials from nearby partners.',
+  'adults-only': 'Explore age-restricted offerings with privacy and responsible access.',
+};
+
 export default function DiscoveryScreen({
   initialQuery = '',
   onBack,
@@ -44,109 +57,61 @@ export default function DiscoveryScreen({
 }: DiscoveryScreenProps) {
   const { t } = useLanguage();
   const { isLight } = useTheme();
+  const reduceMotion = useReducedMotion();
   const [query, setQuery] = useState(initialQuery);
-  const [categoryId, setCategoryId] = useState<string>('all');
-  const [subcategoryId, setSubcategoryId] = useState<string>('all');
+  const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [subcategoryId, setSubcategoryId] = useState('all');
   const [sort, setSort] = useState<SortKey>('recommended');
   const [categories, setCategories] = useState<ApiCategory[]>([]);
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
+  const [categoryLoadAttempt, setCategoryLoadAttempt] = useState(0);
   const [sortOpen, setSortOpen] = useState(false);
+  const [showAllCategories, setShowAllCategories] = useState(false);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const reduceMotion = useReducedMotion();
-  // The docked rail sits directly under the header, so its offset is the header's
-  // measured height rather than a guessed constant. Measured at runtime because the
-  // header wraps on narrow screens, and a hardcoded value that is 40px out leaves a
-  // visible gap for merchants to scroll through.
-  const headerRef = useRef<HTMLElement>(null);
-  const railRef = useRef<HTMLDivElement>(null);
-  const [headerHeight, setHeaderHeight] = useState(0);
-  const [isRailDocked, setIsRailDocked] = useState(false);
-  const activeChipRef = useRef<HTMLButtonElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
+  const railHeadingRef = useRef<HTMLHeadingElement>(null);
 
-  useEffect(() => {
-    const measure = () => {
-      const h = headerRef.current?.getBoundingClientRect().height ?? 0;
-      setHeaderHeight(Math.round(h));
-    };
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, []);
-
-  // "Docked" means the rail has reached its sticky offset, which is what decides
-  // whether it paints a scrim. Keying this off window.scrollY instead would be wrong:
-  // the rail is already stuck at the top of the page on short viewports, so a
-  // scroll-based test reports undocked while it is visibly pinned.
-  useEffect(() => {
-    const onScroll = () => {
-      const rail = railRef.current;
-      if (!rail) return;
-      setIsRailDocked(rail.getBoundingClientRect().top <= headerHeight + 2);
-    };
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, [headerHeight]);
-
-  // Keep the selected vertical visible in the rail. Without this, choosing a
-  // category far down the list leaves the active chip scrolled out of sight, so the
-  // rail stops reporting which vertical you are actually browsing.
-  useEffect(() => {
-    activeChipRef.current?.scrollIntoView({
-      behavior: reduceMotion ? 'auto' : 'smooth',
-      block: 'nearest',
-      inline: 'center',
-    });
-  }, [categoryId, reduceMotion]);
-
+  const orderedCategories = useMemo(() => orderDiscoveryCategories(categories), [categories]);
+  const featuredCategories = useMemo(() => featuredDiscoveryCategories(categories), [categories]);
   const activeCategory = useMemo(
-    () => categories.find((c) => c.id === categoryId) ?? null,
+    () => categories.find((category) => category.id === categoryId) ?? null,
     [categories, categoryId]
   );
 
   const { merchants, total, loading, loadingMore, error, hasMore, loadMore, retry } =
     useMerchantSearch({
-      category: categoryId === 'all' ? undefined : categoryId,
+      category: categoryId ?? undefined,
       subcategory: subcategoryId === 'all' ? undefined : subcategoryId,
       query,
       sort,
       pageSize: 24,
     });
 
-  // Load the vertical rail once.
   useEffect(() => {
     const controller = new AbortController();
+    setCategoriesError(null);
     fetchCategories(controller.signal)
-      .then(setCategories)
+      .then((loadedCategories) => setCategories(mergeTravelToursIntoExperiences(loadedCategories)))
       .catch((err: any) => {
         if (err?.name === 'AbortError') return;
         setCategoriesError(err?.message ?? 'Could not load categories');
       });
     return () => controller.abort();
-  }, []);
+  }, [categoryLoadAttempt]);
 
-  // Focus the field on entry: the user clicked a search bar to get here.
+  // Search launches directly into the field. Opening Explore without a query keeps
+  // the mobile keyboard closed so the category rail and city-wide edit are visible.
   useEffect(() => {
+    if (!initialQuery.trim()) return;
     const timer = window.setTimeout(() => searchRef.current?.focus(), 120);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [initialQuery]);
 
-  // NOTE: deliberately no Escape handler on this surface.
-  //
-  // An earlier pass also bound Escape to "leave discovery". That raced the preview
-  // sheet's own Escape handler, so pressing Escape with the sheet open could tear
-  // down the entire surface instead of closing the sheet. A modal owns Escape
-  // while it is open; this surface leaves the key alone and relies on the visible
-  // Back control for navigation.
-
-  // Infinite scroll. IntersectionObserver rather than a scroll listener:
-  // a scroll handler would fire continuously and force layout on every frame.
   useEffect(() => {
     const node = sentinelRef.current;
     if (!node || !hasMore) return;
-
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting && !loadingMore && !loading) loadMore();
@@ -157,60 +122,98 @@ export default function DiscoveryScreen({
     return () => observer.disconnect();
   }, [hasMore, loadingMore, loading, loadMore]);
 
-  const handleSelectCategory = (id: string) => {
-    setCategoryId(id);
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+  };
+
+  const selectCategory = (category: ApiCategory) => {
+    setCategoryId(category.id);
     setSubcategoryId('all');
+    setShowAllCategories(false);
+    scrollToTop();
+  };
+
+  const goBack = () => {
+    if (activeCategory) {
+      setCategoryId(null);
+      setSubcategoryId('all');
+      scrollToTop();
+      return;
+    }
+    onBack();
+  };
+
+  const scrollToCategories = () => {
+    railHeadingRef.current?.scrollIntoView({
+      behavior: reduceMotion ? 'auto' : 'smooth',
+      block: 'start',
+    });
   };
 
   return (
     <div
       className={cn(
-        'min-h-[100dvh] transition-colors duration-500',
-        isLight ? 'bg-[#f7f8fa] text-[#1a1d20]' : 'bg-[#111315] text-[#f2f2f2]'
+        'min-h-[100dvh] transition-colors duration-300',
+        isLight ? 'bg-gold-canvas text-[#21190D]' : 'bg-[#111315] text-[#F2F2F2]'
       )}
     >
-      {/* ---------------------------------------------------------------- header */}
       <header
-        ref={headerRef}
         className={cn(
           'sticky top-0 z-40 border-b backdrop-blur-2xl',
-          isLight ? 'bg-white/90 border-slate-200' : 'bg-[#141618]/92 border-white/10'
+          isLight ? 'border-black/15 bg-[#241D12]/95 text-[#FAF1DB]' : 'border-white/10 bg-[#141618]/95'
         )}
       >
-        <div className="max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-3">
+        <div className="mx-auto flex max-w-[2200px] items-center gap-3 px-4 py-3 sm:px-6 lg:px-8">
           <button
             type="button"
-            onClick={onBack}
-            aria-label="Back"
+            onClick={goBack}
+            aria-label={activeCategory ? 'Back to discovery' : 'Back to home'}
             className={cn(
-              'flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center border',
-              'transition-transform duration-200 active:scale-95',
+              'flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-colors',
               isLight
-                ? 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
-                : 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10'
+                ? 'border-white/15 bg-white/10 text-[#FAF1DB] hover:bg-white/15'
+                : 'border-white/10 bg-white/5 text-gray-200 hover:bg-white/10'
             )}
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={17} />
           </button>
 
-          <div
+          <button
+            type="button"
+            onClick={() => {
+              if (activeCategory) {
+                setCategoryId(null);
+                setSubcategoryId('all');
+                scrollToTop();
+              }
+            }}
+            className="hidden shrink-0 font-heading text-lg font-bold tracking-[0.1em] text-[#E5B65F] sm:block"
+            aria-label="NEXG discovery"
+          >
+            NEXG
+          </button>
+
+          <label
             className={cn(
-              'flex-1 flex items-center gap-2.5 rounded-full border px-4 py-2.5 transition-colors',
+              'flex min-w-0 flex-1 items-center gap-2.5 rounded-full border px-4 py-2.5 transition-colors',
               isLight
-                ? 'bg-slate-50 border-slate-200 focus-within:border-[#B88728] focus-within:bg-white'
-                : 'bg-white/5 border-white/10 focus-within:border-[#E5B65F]'
+                ? 'border-[#F6E7C0] bg-[#F6E7C0] text-[#21190D] focus-within:border-[#7D5A11]'
+                : 'border-white/10 bg-white/[0.06] text-white focus-within:border-[#E5B65F]'
             )}
           >
-            <Search size={16} className="flex-shrink-0 text-[#7d5a11] dark:text-[#E5B65F]" />
+            <Search size={16} className={cn('shrink-0', isLight ? 'text-[#7D5A11]' : 'text-[#D6AD55]')} />
             <input
               ref={searchRef}
               id="discovery-search-input"
               type="search"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(event) => setQuery(event.target.value)}
               placeholder={t.ui.discoveryScreen.s_f4d948}
               aria-label={t.ui.discoveryScreen.s_8344a6}
-              className="w-full bg-transparent text-sm font-medium focus:outline-none placeholder:text-slate-600 dark:placeholder:text-gray-400"
+              className={cn(
+                'w-full bg-transparent text-sm font-medium outline-none',
+                isLight ? 'placeholder:text-[#594A2D]' : 'placeholder:text-gray-400'
+              )}
             />
             {query && (
               <button
@@ -221,352 +224,337 @@ export default function DiscoveryScreen({
                 }}
                 aria-label={t.ui.discoveryScreen.s_67300d}
                 className={cn(
-                  'flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center',
-                  isLight ? 'text-slate-600 hover:bg-slate-200' : 'text-gray-400 hover:bg-white/10'
+                  'flex h-6 w-6 shrink-0 items-center justify-center rounded-full',
+                  isLight ? 'text-[#594A2D] hover:bg-black/5' : 'text-gray-300 hover:bg-white/10'
                 )}
               >
                 <X size={13} />
               </button>
             )}
-          </div>
-        </div>
+          </label>
 
-        {/* Subcategory chips + sort */}
-        <div className="max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-8 pb-2.5 flex items-center gap-2">
-          <div className="flex-1 flex items-center gap-2 overflow-x-auto">
-            <Chip
-              isLight={isLight}
-              active={subcategoryId === 'all'}
-              onClick={() => setSubcategoryId('all')}
-            >
-              All
-            </Chip>
-            {(activeCategory?.subcategories ?? []).map((sub) => (
-              <Chip
-                key={sub.id}
-                isLight={isLight}
-                active={subcategoryId === sub.id}
-                onClick={() => setSubcategoryId(sub.id)}
-                // Falls back to the parent category's emoji, so a subcategory with no
-                // entry of its own still shows a glyph rather than a blank leading gap.
-                emoji={emojiFor(activeCategory?.id, sub.name) ?? categoryEmoji(activeCategory?.id)}
-              >
-                {sub.name}
-              </Chip>
-            ))}
-          </div>
-
-          {/* Sort */}
-          <div className="relative flex-shrink-0">
-            <button
-              type="button"
-              onClick={() => setSortOpen((v) => !v)}
-              aria-haspopup="listbox"
-              aria-expanded={sortOpen}
-              className={cn(
-                'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border whitespace-nowrap',
-                isLight
-                  ? 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                  : 'bg-white/5 border-white/10 text-gray-200 hover:bg-white/10'
-              )}
-            >
-              <SlidersHorizontal size={12} />
-              <span className="hidden sm:inline">
-                {SORT_OPTIONS.find((o) => o.key === sort)?.label}
-              </span>
-              <ChevronDown size={12} className={cn('transition-transform', sortOpen && 'rotate-180')} />
-            </button>
-
-            {sortOpen && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setSortOpen(false)} />
-                <ul
-                  role="listbox"
-                  className={cn(
-                    'absolute right-0 top-full mt-2 z-20 w-52 rounded-xl border shadow-2xl overflow-hidden py-1',
-                    isLight ? 'bg-white border-slate-200' : 'bg-[#1A1D21] border-white/10'
-                  )}
-                >
-                  {SORT_OPTIONS.map((option) => (
-                    <li key={option.key}>
-                      <button
-                        type="button"
-                        role="option"
-                        aria-selected={sort === option.key}
-                        onClick={() => {
-                          setSort(option.key);
-                          setSortOpen(false);
-                        }}
-                        className={cn(
-                          'w-full text-left px-4 py-2 text-xs font-semibold transition-colors',
-                          sort === option.key
-                            ? 'text-[#7d5a11] dark:text-[#E5B65F]'
-                            : isLight
-                            ? 'text-slate-700 hover:bg-slate-50'
-                            : 'text-gray-300 hover:bg-white/5'
-                        )}
-                      >
-                        {option.label}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
+          <div className={cn('hidden shrink-0 items-center gap-1.5 text-xs font-semibold md:flex', isLight ? 'text-[#F4E8CE]' : 'text-gray-300')}>
+            <MapPin size={14} className="text-[#E5B65F]" /> Nairobi
           </div>
         </div>
       </header>
 
-      {/* ------------------------------------------------------------------ body */}
-      <div className="max-w-[1520px] mx-auto px-4 sm:px-6 lg:px-8 py-5 flex gap-6">
-        {/* Vertical rail */}
-        <aside className="hidden lg:block w-60 flex-shrink-0">
-          <div className="sticky top-[124px] space-y-1">
-            <h2
-              className={cn(
-                'px-3 pb-1.5 text-[10px] font-bold uppercase tracking-[0.16em]',
-                isLight ? 'text-slate-600' : 'text-gray-400'
-              )}
-            >{t.ui.discoveryScreen.s_0b7ee2}</h2>
-            <RailButton isLight={isLight} active={categoryId === 'all'} onClick={() => handleSelectCategory('all')}>
-              <Store size={15} />
-              <span className="flex-1 truncate">Everything</span>
-              <span className="text-[10px] font-bold opacity-60">{total || ''}</span>
-            </RailButton>
-
-            {categories.map((category) => (
-              <RailButton
-                key={category.id}
-                isLight={isLight}
-                active={categoryId === category.id}
-                onClick={() => handleSelectCategory(category.id)}
-              >
-                <span className="flex-1 truncate">{category.name}</span>
-                <span className="text-[10px] font-bold opacity-60">{category.subcategories.length}</span>
-              </RailButton>
-            ))}
-
-            {categoriesError && (
-              <p className="px-3 pt-2 text-[11px] font-medium text-amber-500">{categoriesError}</p>
-            )}
-          </div>
-        </aside>
-
-        {/* Results */}
-        <main className="flex-1 min-w-0">
-          {/* Vertical chips, docked.
-              Below `lg` there is no room for the left rail, so the categories used
-              to scroll away with the results — once you were 20 merchants down there
-              was no way to change vertical without scrolling back to the top. This
-              docks directly under the header (top-[66px], matching its height) and
-              keeps the categories reachable for the whole browse, the same way the
-              merchant page's section rail does.
-
-              The negative margins let it span the full width of the scroller so
-              chips pass under the page padding rather than being clipped at it. */}
-          <div
-            ref={railRef}
-            className={cn(
-              'lg:hidden sticky z-30 -mx-4 sm:-mx-6 px-4 sm:px-6 py-2.5 mb-3',
-              'flex gap-2 overflow-x-auto scrollbar-hide transition-colors duration-200',
-              isRailDocked
-                ? isLight
-                  ? 'bg-[#f7f8fa]/95 backdrop-blur-md border-b border-slate-200'
-                  : 'bg-[#111315]/95 backdrop-blur-md border-b border-white/10'
-                : 'border-b border-transparent'
-            )}
-            style={{ top: headerHeight }}
-            role="tablist"
-            aria-label={t.ui.discoveryScreen.s_030851}
-          >
-            <Chip
-              isLight={isLight}
-              active={categoryId === 'all'}
-              onClick={() => handleSelectCategory('all')}
-              ref={activeChipRef}
-              emoji="✨"
-            >
-              Everything
-            </Chip>
-            {categories.map((category) => (
-              <Chip
-                key={category.id}
-                isLight={isLight}
-                active={categoryId === category.id}
-                onClick={() => handleSelectCategory(category.id)}
-                ref={categoryId === category.id ? activeChipRef : undefined}
-                emoji={categoryEmoji(category.id)}
-              >
-                {category.name}
-              </Chip>
-            ))}
-          </div>
-
-          <div className="flex items-baseline justify-between gap-3 mb-4">
-            <h1 className="text-lg sm:text-xl font-bold tracking-tight">
-              {query
-                ? `Results for "${query}"`
-                : activeCategory
-                ? activeCategory.name
-                : 'All merchants'}
-            </h1>
-            {!loading && (
-              <span className={cn('text-xs font-semibold', isLight ? 'text-slate-600' : 'text-gray-400')}>
-                {total.toLocaleString()} {total === 1 ? 'merchant' : 'merchants'}
+      <main className="mx-auto max-w-[2200px] px-4 pb-16 pt-4 sm:px-6 sm:pt-6 lg:px-8">
+        {!activeCategory && !query.trim() && (
+          <section className="relative isolate mb-8 min-h-[260px] overflow-hidden rounded-[1.65rem] bg-[#18150F] sm:min-h-[320px] lg:min-h-[360px]">
+            <img
+              src="/images/nexg-discovery-rooftop.png"
+              alt="A NEXG concierge welcoming guests to a Nairobi rooftop at sunset"
+              fetchPriority="high"
+              className="absolute inset-0 h-full w-full object-cover object-[64%_44%]"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#15120d]/95 via-[#15120d]/72 to-[#15120d]/10" />
+            <div className="relative flex min-h-[260px] max-w-2xl flex-col items-start justify-center p-6 text-white sm:min-h-[320px] sm:p-10 lg:min-h-[360px] lg:p-14">
+              <span className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#E5B65F]/50 bg-black/20 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-[#F3D48C] backdrop-blur-sm">
+                NEXG · NAIROBI
               </span>
-            )}
-          </div>
-          {/* Error */}
-          {error && (
-            <div
-              className={cn(
-                'rounded-2xl border p-6 text-center',
-                isLight ? 'bg-white border-slate-200' : 'bg-[#181A1F] border-white/10'
-              )}
-            >
-              <p className="text-sm font-bold text-rose-500">{error}</p>
-              <p className={cn('text-xs mt-1', isLight ? 'text-slate-600' : 'text-gray-400')}>{t.ui.discoveryScreen.s_176135}<code className="font-mono">npm run server</code>.
+              <h1 className="max-w-xl font-heading text-[clamp(2rem,5vw,4.4rem)] font-bold leading-[0.98] tracking-[-0.04em]">
+                What do you need today?
+              </h1>
+              <p className="mt-4 max-w-lg text-sm leading-relaxed text-white/85 sm:text-base">
+                From airport pickups and dinner to wellness, travel and everyday essentials, find it here.
               </p>
               <button
                 type="button"
-                onClick={retry}
+                onClick={scrollToCategories}
+                className="mt-6 inline-flex min-h-11 items-center gap-2 rounded-full bg-[#E5B65F] px-5 text-sm font-bold text-[#21190D] transition-transform active:scale-[0.98]"
+              >
+                Explore services <ArrowDown size={15} />
+              </button>
+            </div>
+            <div className="absolute bottom-4 right-4 hidden rounded-2xl border border-white/15 bg-[#21190D]/70 px-4 py-3 text-right text-xs text-white/85 backdrop-blur-md sm:block">
+              <span className="block font-bold text-[#F3D48C]">One NEXG</span>
+              <span>Food · services · experiences</span>
+            </div>
+          </section>
+        )}
+
+        {!activeCategory && (
+          <section className="mb-9 scroll-mt-28" aria-labelledby="discovery-categories-heading">
+            <div className="mb-3 flex items-end justify-between gap-4">
+              <div>
+                <p className={cn('mb-1 text-[10px] font-bold uppercase tracking-[0.17em]', isLight ? 'text-[#483512]' : 'text-[#E5B65F]')}>
+                  Browse NEXG
+                </p>
+                <h2 ref={railHeadingRef} id="discovery-categories-heading" className="font-heading text-xl font-bold tracking-tight sm:text-2xl">
+                  Explore the range
+                </h2>
+                <p className={cn('mt-1 text-xs sm:text-sm', isLight ? 'text-[#40341E]' : 'text-gray-400')}>
+                  From everyday errands to plans worth looking forward to.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAllCategories((value) => !value)}
+                aria-expanded={showAllCategories}
                 className={cn(
-                  'mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold',
-                  'bg-[#E5B65F] text-slate-950 hover:bg-[#d6a54d] active:scale-[0.98] transition-transform'
+                  'inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-xs font-bold transition-colors',
+                  isLight ? 'text-[#21190D] hover:bg-black/5' : 'text-[#E5B65F] hover:bg-white/5'
                 )}
               >
-                <RefreshCw size={13} />
-                Try again
+                {showAllCategories ? 'Show priority edit' : `All ${orderedCategories.length} categories`}
+                <ArrowRight size={13} />
+              </button>
+            </div>
+
+            {categoriesError && (
+              <div className={cn('mb-3 rounded-xl border px-4 py-3 text-xs', isLight ? 'border-[#6D531D]/25 bg-[#F4E4BC] text-[#3D2E12]' : 'border-white/10 bg-white/5 text-gray-300')}>
+                <p>We couldn’t load service categories. You can still search the catalogue.</p>
+                <button
+                  type="button"
+                  onClick={() => setCategoryLoadAttempt((attempt) => attempt + 1)}
+                  className="mt-2 inline-flex items-center gap-1.5 font-bold underline underline-offset-2"
+                >
+                  <RefreshCw size={12} /> Try again
+                </button>
+              </div>
+            )}
+
+            <DiscoveryCategoryRail
+              categories={featuredCategories}
+              isLight={isLight}
+              onSelectCategory={selectCategory}
+            />
+
+            {showAllCategories && (
+              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7">
+                {orderedCategories.map((category) => (
+                  <button
+                    key={category.id}
+                    type="button"
+                    onClick={() => selectCategory(category)}
+                    className={cn(
+                      'group relative aspect-[1.24] overflow-hidden rounded-2xl border text-left shadow-sm transition-transform active:scale-[0.99]',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#21190D] focus-visible:ring-offset-2',
+                      isLight ? 'border-black/10 focus-visible:ring-offset-[#D8B350]' : 'border-white/10 focus-visible:ring-offset-[#111315]'
+                    )}
+                  >
+                    <img
+                      src={category.image_url || '/images/hero_section-640.webp'}
+                      alt=""
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+                    />
+                    <span className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
+                    <span className="absolute bottom-3 left-3 right-3 text-xs font-bold leading-tight text-white sm:text-sm">
+                      {category.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {activeCategory && (
+          <section className="relative isolate mb-6 min-h-[220px] overflow-hidden rounded-[1.55rem] bg-[#18150F] sm:min-h-[270px]">
+            <img
+              src={activeCategory.image_url || '/images/hero_section-640.webp'}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover object-center"
+              referrerPolicy="no-referrer"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-black/15" />
+            <div className="relative flex min-h-[220px] max-w-2xl flex-col justify-end p-6 text-white sm:min-h-[270px] sm:p-9">
+              <button
+                type="button"
+                onClick={() => {
+                  setCategoryId(null);
+                  setSubcategoryId('all');
+                  scrollToTop();
+                }}
+                className="mb-auto inline-flex w-fit items-center gap-2 rounded-full border border-white/20 bg-black/25 px-3 py-2 text-xs font-bold text-white backdrop-blur-md transition-colors hover:bg-black/45"
+              >
+                <ArrowLeft size={13} /> All services
+              </button>
+              <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#F3D48C]">
+                NEXG · NAIROBI
+              </p>
+              <h1 className="font-heading text-[clamp(2rem,4.4vw,3.6rem)] font-bold leading-none tracking-[-0.035em]">
+                {activeCategory.name}
+              </h1>
+              <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/85 sm:text-base">
+                {CATEGORY_STORIES[activeCategory.id] || activeCategory.description || `Explore ${activeCategory.name.toLowerCase()} from NEXG partners across Nairobi.`}
+              </p>
+            </div>
+          </section>
+        )}
+
+        {activeCategory && (
+          <div className="mb-5 flex flex-nowrap items-center gap-2 overflow-x-auto scrollbar-hide pb-1">
+            <SubcategoryChip isLight={isLight} active={subcategoryId === 'all'} onClick={() => setSubcategoryId('all')}>
+              All {activeCategory.name}
+            </SubcategoryChip>
+            {(activeCategory.subcategories ?? []).map((subcategory) => (
+              <SubcategoryChip
+                key={subcategory.id}
+                isLight={isLight}
+                active={subcategoryId === subcategory.id}
+                onClick={() => setSubcategoryId(subcategory.id)}
+              >
+                {subcategory.name}
+              </SubcategoryChip>
+            ))}
+          </div>
+        )}
+
+        <section ref={resultsRef} aria-labelledby="discovery-results-heading">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className={cn('mb-1 text-[10px] font-bold uppercase tracking-[0.15em]', isLight ? 'text-[#483512]' : 'text-[#E5B65F]')}>
+                {query.trim() ? 'Search NEXG' : activeCategory ? 'Local partners' : 'A few places to start'}
+              </p>
+              <h2 id="discovery-results-heading" className="font-heading text-lg font-bold tracking-tight sm:text-xl">
+                {query.trim()
+                  ? `Results for “${query.trim()}”`
+                  : activeCategory
+                  ? activeCategory.name
+                  : 'Find your next stop'}
+              </h2>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {!loading && (
+                <span className={cn('text-xs font-semibold', isLight ? 'text-[#40341E]' : 'text-gray-400')}>
+                  {total.toLocaleString()} {total === 1 ? 'partner' : 'partners'}
+                </span>
+              )}
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setSortOpen((value) => !value)}
+                  aria-haspopup="listbox"
+                  aria-expanded={sortOpen}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-bold whitespace-nowrap',
+                    isLight ? 'border-black/15 bg-[#F5E9C9] text-[#21190D] hover:bg-[#F9F0DA]' : 'border-white/10 bg-white/5 text-gray-200 hover:bg-white/10'
+                  )}
+                >
+                  <SlidersHorizontal size={13} />
+                  <span className="hidden sm:inline">{SORT_OPTIONS.find((option) => option.key === sort)?.label}</span>
+                  <ChevronDown size={12} className={cn('transition-transform', sortOpen && 'rotate-180')} />
+                </button>
+                {sortOpen && (
+                  <>
+                    <button type="button" aria-label="Close sorting menu" className="fixed inset-0 z-10 cursor-default" onClick={() => setSortOpen(false)} />
+                    <ul
+                      role="listbox"
+                      aria-label="Sort partners"
+                      className={cn(
+                        'absolute right-0 top-full z-20 mt-2 w-52 overflow-hidden rounded-xl border py-1 shadow-2xl',
+                        isLight ? 'border-black/10 bg-[#F7EED8] text-[#21190D]' : 'border-white/10 bg-[#1A1D21] text-white'
+                      )}
+                    >
+                      {SORT_OPTIONS.map((option) => (
+                        <li key={option.key}>
+                          <button
+                            type="button"
+                            role="option"
+                            aria-selected={sort === option.key}
+                            onClick={() => {
+                              setSort(option.key);
+                              setSortOpen(false);
+                            }}
+                            className={cn(
+                              'flex w-full items-center justify-between px-4 py-2 text-left text-xs font-semibold transition-colors',
+                              sort === option.key
+                                ? isLight ? 'text-[#6F4E0F]' : 'text-[#E5B65F]'
+                                : isLight ? 'hover:bg-black/5' : 'text-gray-300 hover:bg-white/5'
+                            )}
+                          >
+                            {option.label}
+                            {sort === option.key && <Check size={13} />}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {error && (
+            <div className={cn('rounded-2xl border p-6 text-center', isLight ? 'border-black/10 bg-[#F7EED8]' : 'border-white/10 bg-[#181A1F]')}>
+              <p className="text-sm font-bold text-rose-600">We couldn’t load partners just now.</p>
+              <p className={cn('mt-1 text-xs', isLight ? 'text-[#594A2D]' : 'text-gray-400')}>Try again in a moment.</p>
+              <button
+                type="button"
+                onClick={retry}
+                className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#E5B65F] px-4 py-2 text-xs font-bold text-[#21190D] transition-transform active:scale-[0.98]"
+              >
+                <RefreshCw size={13} /> Try again
               </button>
             </div>
           )}
 
-          {/* Skeletons */}
           {loading && !error && <SkeletonGrid isLight={isLight} />}
 
-          {/* Empty */}
           {!loading && !error && merchants.length === 0 && (
-            <div
-              className={cn(
-                'rounded-2xl border p-10 text-center',
-                isLight ? 'bg-white border-slate-200' : 'bg-[#181A1F] border-white/10'
-              )}
-            >
-              <div
-                className={cn(
-                  'w-12 h-12 rounded-full mx-auto flex items-center justify-center mb-3',
-                  isLight ? 'bg-slate-100 text-slate-600' : 'bg-white/5 text-gray-400'
-                )}
-              >
-                <Search size={20} />
+            <div className={cn('rounded-2xl border p-10 text-center', isLight ? 'border-black/10 bg-[#F7EED8]' : 'border-white/10 bg-[#181A1F]')}>
+              <div className={cn('mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full', isLight ? 'bg-[#E9D8AD] text-[#594A2D]' : 'bg-white/5 text-gray-400')}>
+                {query.trim() ? <Search size={20} /> : <Store size={20} />}
               </div>
-              <h3 className="text-sm font-bold">{t.ui.discoveryScreen.s_a3c57f}</h3>
-              <p className={cn('text-xs mt-1 max-w-sm mx-auto', isLight ? 'text-slate-600' : 'text-gray-400')}>
-                {query
-                  ? `Nothing matches "${query}" in this vertical. Try a different term or browse everything.`
-                  : 'This vertical has no merchants yet.'}
+              <h3 className="text-sm font-bold">No partners found here yet</h3>
+              <p className={cn('mx-auto mt-1 max-w-sm text-xs', isLight ? 'text-[#594A2D]' : 'text-gray-400')}>
+                {query.trim()
+                  ? `Nothing matches “${query.trim()}”. Try another search or browse a different service.`
+                  : 'Try another service, or check back as the NEXG range grows.'}
               </p>
-              {(query || categoryId !== 'all') && (
+              {(query.trim() || activeCategory) && (
                 <button
                   type="button"
                   onClick={() => {
                     setQuery('');
-                    handleSelectCategory('all');
+                    setCategoryId(null);
+                    setSubcategoryId('all');
                   }}
-                  className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold bg-[#E5B65F] text-slate-950 hover:bg-[#d6a54d] active:scale-[0.98] transition-transform"
-                >{t.ui.discoveryScreen.s_412226}</button>
+                  className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#E5B65F] px-4 py-2 text-xs font-bold text-[#21190D] transition-transform active:scale-[0.98]"
+                >
+                  Browse discovery
+                </button>
               )}
             </div>
           )}
 
-          {/* Grid */}
           {!error && merchants.length > 0 && (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3 2xl:grid-cols-4">
                 {merchants.map((merchant) => (
-                  <DiscoveryMerchantCard
-                    key={merchant.id}
-                    merchant={merchant}
-                    onOpen={onOpenMerchant}
-                  />
+                  <DiscoveryMerchantCard key={merchant.id} merchant={merchant} onOpen={onOpenMerchant} />
                 ))}
               </div>
-
               {loadingMore && <SkeletonGrid isLight={isLight} count={3} className="mt-5" />}
-
               <div ref={sentinelRef} className="h-10" />
-
               {hasMore && !loadingMore && (
-                <div className="flex justify-center pb-8">
+                <div className="flex justify-center pb-8 pt-3">
                   <button
                     type="button"
                     onClick={loadMore}
                     className={cn(
-                      'px-5 py-2.5 rounded-full text-xs font-bold border transition-colors',
-                      isLight
-                        ? 'bg-white border-slate-300 text-slate-800 hover:bg-slate-50'
-                        : 'bg-white/5 border-white/15 text-gray-100 hover:bg-white/10'
+                      'rounded-full border px-5 py-2.5 text-xs font-bold transition-colors',
+                      isLight ? 'border-black/15 bg-[#F5E9C9] text-[#21190D] hover:bg-[#F9F0DA]' : 'border-white/15 bg-white/5 text-gray-100 hover:bg-white/10'
                     )}
-                  >{t.ui.discoveryScreen.s_dfe60c}</button>
+                  >
+                    Load more partners
+                  </button>
                 </div>
               )}
             </>
           )}
-        </main>
-      </div>
+        </section>
+      </main>
     </div>
   );
 }
 
-// ------------------------------------------------------------------ sub-pieces
-
-const Chip = React.forwardRef<
-  HTMLButtonElement,
-  {
-    isLight: boolean;
-    active: boolean;
-    onClick: () => void;
-    children: React.ReactNode;
-    /** Emoji shown before the label. See src/data/railEmoji.ts for why emoji. */
-    emoji?: string;
-  }
->(({ isLight, active, onClick, children, emoji }, ref) => (
-  <button
-    ref={ref}
-    type="button"
-    onClick={onClick}
-    role="tab"
-    aria-selected={active}
-    className={cn(
-      // Sized to Wolt's rail: taller than a text pill so the emoji has room to read as a
-      // glyph rather than a speck, which is what makes the rail scannable at a glance.
-      // `gap` separates the glyph from the label without a wrapper element.
-      'flex-shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-bold whitespace-nowrap border transition-colors',
-      // Tactile press feedback on every chip: 100-160ms is Emil's band for a press, and
-      // scale-only keeps it off the layout path.
-      'active:scale-[0.97] transition-transform',
-      active
-        ? isLight
-          ? 'bg-[#B88728] text-slate-950 border-[#B88728]'
-          : 'bg-[#E5B65F] text-slate-950 border-[#E5B65F]'
-        : isLight
-        ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-        : 'bg-white/8 text-gray-200 border-white/12 hover:bg-white/12'
-    )}
-  >
-    {/* aria-hidden because the label already carries the meaning; a screen reader
-        announcing "fork and knife emoji Restaurants" is noise, not information. */}
-    {emoji && (
-      <span aria-hidden="true" className="text-sm leading-none">
-        {emoji}
-      </span>
-    )}
-    {children}
-  </button>
-));
-Chip.displayName = 'Chip';
-
-const RailButton: React.FC<{
+const SubcategoryChip: React.FC<{
   isLight: boolean;
   active: boolean;
   onClick: () => void;
@@ -577,14 +565,14 @@ const RailButton: React.FC<{
     onClick={onClick}
     aria-pressed={active}
     className={cn(
-      'w-full flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold text-left transition-colors',
+      'max-w-full rounded-full border px-3.5 py-2 text-xs font-bold transition-colors',
       active
         ? isLight
-          ? 'bg-[#B88728]/10 text-[#7d5a11]'
-          : 'bg-[#E5B65F]/15 text-[#E5B65F]'
+          ? 'border-[#21190D] bg-[#21190D] text-[#F8EED5]'
+          : 'border-[#E5B65F] bg-[#E5B65F] text-[#21190D]'
         : isLight
-        ? 'text-slate-600 hover:bg-slate-100'
-        : 'text-gray-400 hover:bg-white/5'
+        ? 'border-black/15 bg-[#F5E9C9] text-[#342818] hover:bg-[#F9F0DA]'
+        : 'border-white/10 bg-white/5 text-gray-300 hover:bg-white/10'
     )}
   >
     {children}
@@ -596,25 +584,17 @@ const SkeletonGrid: React.FC<{ isLight: boolean; count?: number; className?: str
   count = 6,
   className,
 }) => (
-  <div
-    className={cn(
-      'grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5',
-      className
-    )}
-  >
+  <div className={cn('grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 xl:grid-cols-3 2xl:grid-cols-4', className)}>
     {Array.from({ length: count }).map((_, index) => (
       <div
         key={index}
-        className={cn(
-          'rounded-2xl overflow-hidden border animate-status',
-          isLight ? 'bg-white border-slate-200' : 'bg-[#181A1F] border-white/10'
-        )}
+        className={cn('animate-status overflow-hidden rounded-2xl border', isLight ? 'border-black/10 bg-[#F7EED8]' : 'border-white/10 bg-[#181A1F]')}
       >
-        <div className={cn('aspect-[16/10] w-full', isLight ? 'bg-slate-100' : 'bg-white/5')} />
-        <div className="p-4 space-y-2.5">
-          <div className={cn('h-3.5 rounded w-3/4', isLight ? 'bg-slate-100' : 'bg-white/5')} />
-          <div className={cn('h-3 rounded w-1/2', isLight ? 'bg-slate-100' : 'bg-white/5')} />
-          <div className={cn('h-3 rounded w-2/3', isLight ? 'bg-slate-100' : 'bg-white/5')} />
+        <div className={cn('aspect-[16/10] w-full', isLight ? 'bg-[#E8D7AA]' : 'bg-white/5')} />
+        <div className="space-y-2.5 p-4">
+          <div className={cn('h-3.5 w-3/4 rounded', isLight ? 'bg-[#E8D7AA]' : 'bg-white/5')} />
+          <div className={cn('h-3 w-1/2 rounded', isLight ? 'bg-[#E8D7AA]' : 'bg-white/5')} />
+          <div className={cn('h-3 w-2/3 rounded', isLight ? 'bg-[#E8D7AA]' : 'bg-white/5')} />
         </div>
       </div>
     ))}

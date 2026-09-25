@@ -309,9 +309,7 @@ export default function MerchantAdCarousel({
   return (
     <section
       id="merchant-ad-carousel"
-      className={`py-10 px-4 sm:px-8 xl:px-16 max-w-[1440px] mx-auto border-b space-y-12 transition-colors duration-300 ${
-        isLight ? 'border-slate-200/80' : 'border-white/10'
-      }`}
+      className="py-10 px-4 sm:px-8 xl:px-16 max-w-[1440px] mx-auto space-y-12 transition-colors duration-300"
     >
       {/* ==================================================================== */}
       {/* 1. FIRST CAROUSEL: "Popular Right Now" / "Popular Around You"       */}
@@ -338,16 +336,16 @@ export default function MerchantAdCarousel({
                 <button
                   onClick={requestLocation}
                   disabled={isLocating}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border transition-colors cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-colors cursor-pointer ${
                     isLight
-                      ? 'bg-[#B88728]/10 text-[#7d5a11] border-[#B88728]/25 hover:bg-[#B88728]/20'
+                      ? 'bg-[#FFF9EB] text-[#493000] border-[#7D5A11]/55 hover:bg-white hover:border-[#62430A] shadow-[0_1px_3px_rgba(33,25,13,0.12)]'
                       : 'bg-[#181A1F] text-[#F8F3E8] border-white/10 hover:bg-[#202328]'
                   }`}
                   title={t.ui.merchantAdCarousel.s_430fac}
                 >
                   <Navigation
                     size={12}
-                    className={`${isLocating ? 'animate-spin' : ''} ${isLight ? 'text-[#7d5a11]' : 'text-[#E5B65F]'}`}
+                    className={`${isLocating ? 'animate-spin' : ''} ${isLight ? 'text-[#7D5A11]' : 'text-[#E5B65F]'}`}
                   />
                   <span>{isLocating ? 'Detecting...' : 'Enable location'}</span>
                 </button>
